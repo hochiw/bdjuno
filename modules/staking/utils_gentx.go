@@ -25,12 +25,26 @@ func (m *Module) StoreValidatorsFromMsgCreateValidator(height int64, msg *stakin
 		return fmt.Errorf("error while getting Avatar URL: %s", err)
 	}
 
+	consAddr, err := utils.ConvertAddressPrefix("likevalcons", sdk.ConsAddress(pubKey.Address()).String())
+	if err != nil {
+		return fmt.Errorf("error while converting to likevalcons prefix: %s", err)
+	}
+	operAddr, err := utils.ConvertAddressPrefix("likevaloper", msg.ValidatorAddress)
+	if err != nil {
+		return fmt.Errorf("error while converting to likevaloper prefix: %s", err)
+	}
+	selfDelegateAddress, err := utils.ConvertAddressPrefix("like", msg.DelegatorAddress)
+	if err != nil {
+		return fmt.Errorf("error while converting to like prefix: %s", err)
+	}
+
 	// Save the validators
 	err = m.db.SaveValidatorData(
 		types.NewValidator(
-			sdk.ConsAddress(pubKey.Address()).String(),
-			msg.ValidatorAddress, pubKey.String(),
-			msg.DelegatorAddress,
+			consAddr,
+			operAddr,
+			pubKey.String(),
+			selfDelegateAddress,
 			&msg.Commission.MaxChangeRate,
 			&msg.Commission.MaxRate,
 			height,
@@ -40,27 +54,15 @@ func (m *Module) StoreValidatorsFromMsgCreateValidator(height int64, msg *stakin
 		return err
 	}
 
-	// For likecoin dual prefix
-	opAddr, err := utils.ConvertAddressPrefix("likevaloper", msg.ValidatorAddress)
-	if err != nil {
-		return fmt.Errorf("error while converting to likevaloper prefix: %s", err)
-	}
-
 	// Save the descriptions
 	err = m.db.SaveValidatorDescription(
 		types.NewValidatorDescription(
-			opAddr,
+			operAddr,
 			msg.Description,
 			avatarURL,
 			height,
 		),
 	)
-	if err != nil {
-		return err
-	}
-
-	// For likecoin dual prefix
-	operAddr, err := utils.ConvertAddressPrefix("likevaloper", msg.ValidatorAddress)
 	if err != nil {
 		return err
 	}
