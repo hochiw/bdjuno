@@ -51,6 +51,18 @@ func (s Source) ProposalDeposit(height int64, id uint64, depositor string) (govt
 	return res.Deposit, nil
 }
 
+func (s Source) ProposalDeposits(height int64, id uint64) ([]govtypes.Deposit, error) {
+	res, err := s.govClient.Deposits(
+		remote.GetHeightRequestContext(s.Ctx, height),
+		&govtypes.QueryDepositsRequest{ProposalId: id},
+	)
+	if err != nil {
+		return []govtypes.Deposit{}, err
+	}
+
+	return res.Deposits, nil
+}
+
 // TallyResult implements govsource.Source
 func (s Source) TallyResult(height int64, proposalID uint64) (govtypes.TallyResult, error) {
 	res, err := s.govClient.TallyResult(

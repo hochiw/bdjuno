@@ -5,6 +5,7 @@ import (
 
 	"strconv"
 
+	"github.com/forbole/bdjuno/v3/modules/utils"
 	"github.com/forbole/bdjuno/v3/types"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
@@ -63,6 +64,11 @@ func (m *Module) handleMsgSubmitProposal(tx *juno.Tx, index int, msg *govtypes.M
 		return fmt.Errorf("error while unpacking proposal content: %s", err)
 	}
 
+	proposerAddress, err := utils.ConvertAddressPrefix("like", msg.Proposer)
+	if err != nil {
+		return fmt.Errorf("error while converting to like prefix: %s", err)
+	}
+
 	// Store the proposal
 	proposalObj := types.NewProposal(
 		proposal.ProposalId,
@@ -74,32 +80,58 @@ func (m *Module) handleMsgSubmitProposal(tx *juno.Tx, index int, msg *govtypes.M
 		proposal.DepositEndTime,
 		proposal.VotingStartTime,
 		proposal.VotingEndTime,
-		msg.Proposer,
+		proposerAddress,
 	)
 	err = m.db.SaveProposals([]types.Proposal{proposalObj})
 	if err != nil {
 		return err
 	}
 
+	fmt.Printf("Proposal %d submitted at height %d \n", proposalID, tx.Height)
+
 	// Store the deposit
-	deposit := types.NewDeposit(proposal.ProposalId, msg.Proposer, msg.InitialDeposit, tx.Height)
+	deposit := types.NewDeposit(proposal.ProposalId, proposerAddress, msg.InitialDeposit, 1)
 	return m.db.SaveDeposits([]types.Deposit{deposit})
 }
 
 // handleMsgDeposit allows to properly handle a handleMsgDeposit
 func (m *Module) handleMsgDeposit(tx *juno.Tx, msg *govtypes.MsgDeposit) error {
-	deposit, err := m.source.ProposalDeposit(tx.Height, msg.ProposalId, msg.Depositor)
+
+	depositorAddress, err := utils.ConvertAddressPrefix("like", msg.Depositor)
+	if err != nil {
+		return fmt.Errorf("error while converting to like prefix: %s", err)
+	}
+
+	fmt.Printf("proposal deposit to proposal %d at height %d from %s \n", msg.ProposalId, tx.Height, depositorAddress)
+	deposits, err := m.source.ProposalDeposits(tx.Height, msg.ProposalId)
 	if err != nil {
 		return fmt.Errorf("error while getting proposal deposit: %s", err)
 	}
 
+	var deposit *govtypes.Deposit
+	for _, d := range deposits {
+		if d.Depositor == msg.Depositor {
+			deposit = &d
+			break
+		}
+	}
+
+	if deposit == nil {
+		return fmt.Errorf("error while getting proposal deposit: %s", err)
+	}
+
 	return m.db.SaveDeposits([]types.Deposit{
-		types.NewDeposit(msg.ProposalId, msg.Depositor, deposit.Amount, tx.Height),
+		types.NewDeposit(msg.ProposalId, depositorAddress, deposit.Amount, 1),
 	})
 }
 
 // handleMsgVote allows to properly handle a handleMsgVote
 func (m *Module) handleMsgVote(tx *juno.Tx, msg *govtypes.MsgVote) error {
-	vote := types.NewVote(msg.ProposalId, msg.Voter, msg.Option, tx.Height)
+	voterAddress, err := utils.ConvertAddressPrefix("like", msg.Voter)
+	if err != nil {
+		return fmt.Errorf("error while converting to like prefix: %s", err)
+	}
+	fmt.Printf("proposal vote to proposal %d at height %d from %s \n", msg.ProposalId, tx.Height, voterAddress)
+	vote := types.NewVote(msg.ProposalId, voterAddress, msg.Option, 1)
 	return m.db.SaveVote(vote)
 }
